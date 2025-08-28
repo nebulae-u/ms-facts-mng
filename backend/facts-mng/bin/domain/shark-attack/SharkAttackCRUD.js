@@ -2,22 +2,37 @@
 
 const uuidv4 = require("uuid/v4");
 const { of, forkJoin, from, iif, throwError } = require("rxjs");
-const { mergeMap, catchError, map, toArray, pluck } = require('rxjs/operators');
+const {
+  mergeMap,
+  catchError,
+  map,
+  toArray,
+  tap,
+  last,
+  delay,
+} = require("rxjs/operators");
 
 const Event = require("@nebulae/event-store").Event;
-const { CqrsResponseHelper } = require('@nebulae/backend-node-tools').cqrs;
-const { ConsoleLogger } = require('@nebulae/backend-node-tools').log;
-const { CustomError, INTERNAL_SERVER_ERROR_CODE, PERMISSION_DENIED } = require("@nebulae/backend-node-tools").error;
+const { CqrsResponseHelper } = require("@nebulae/backend-node-tools").cqrs;
+const { ConsoleLogger } = require("@nebulae/backend-node-tools").log;
+const { CustomError, INTERNAL_SERVER_ERROR_CODE, PERMISSION_DENIED } =
+  require("@nebulae/backend-node-tools").error;
 const { brokerFactory } = require("@nebulae/backend-node-tools").broker;
 
 const broker = brokerFactory();
 const eventSourcing = require("../../tools/event-sourcing").eventSourcing;
+const { FeedParser } = require("../../tools/feed-parser");
+
 const SharkAttackDA = require("./data-access/SharkAttackDA");
 
 const READ_ROLES = ["SHARK_ATTACK_READ"];
 const WRITE_ROLES = ["SHARK_ATTACK_WRITE"];
 const REQUIRED_ATTRIBUTES = [];
 const MATERIALIZED_VIEW_TOPIC = "emi-gateway-materialized-view-updates";
+
+const SHARK_ATTACKS_FEED_URL =
+  process.env.GAME_FEED_URL ||
+  "https://public.opendatasoft.com/api/explore/v2.1/catalog/datasets/global-shark-attack/records?limit=100";
 
 /**
  * Singleton instance
@@ -26,31 +41,69 @@ const MATERIALIZED_VIEW_TOPIC = "emi-gateway-materialized-view-updates";
 let instance;
 
 class SharkAttackCRUD {
-  constructor() {
-  }
+  constructor() {}
 
-  /**     
+  /**
    * Generates and returns an object that defines the CQRS request handlers.
-   * 
+   *
    * The map is a relationship of: AGGREGATE_TYPE VS { MESSAGE_TYPE VS  { fn: rxjsFunction, instance: invoker_instance } }
-   * 
+   *
    * ## Example
    *  { "CreateUser" : { "somegateway.someprotocol.mutation.CreateUser" : {fn: createUser$, instance: classInstance } } }
    */
   generateRequestProcessorMap() {
     return {
-      'SharkAttack': {
-        "emigateway.graphql.query.FactsMngSharkAttackListing": { fn: instance.getFactsMngSharkAttackListing$, instance, jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES } },
-        "emigateway.graphql.query.FactsMngSharkAttack": { fn: instance.getSharkAttack$, instance, jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES } },
-        "emigateway.graphql.mutation.FactsMngCreateSharkAttack": { fn: instance.createSharkAttack$, instance, jwtValidation: { roles: WRITE_ROLES, attributes: REQUIRED_ATTRIBUTES } },
-        "emigateway.graphql.mutation.FactsMngUpdateSharkAttack": { fn: instance.updateSharkAttack$, jwtValidation: { roles: WRITE_ROLES, attributes: REQUIRED_ATTRIBUTES } },
-        "emigateway.graphql.mutation.FactsMngDeleteSharkAttacks": { fn: instance.deleteSharkAttacks$, jwtValidation: { roles: WRITE_ROLES, attributes: REQUIRED_ATTRIBUTES } },
-      }
-    }
-  };
+      SharkAttack: {
+        "emigateway.graphql.query.FactsMngSharkAttackListing": {
+          fn: instance.getFactsMngSharkAttackListing$,
+          instance,
+          jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES },
+        },
+        "emigateway.graphql.query.FactsMngSharkAttack": {
+          fn: instance.getSharkAttack$,
+          instance,
+          jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES },
+        },
+        "emigateway.graphql.query.FactsMngSharkAttacksByCountry": {
+          fn: instance.getFactsMngSharkAttacksByCountry$,
+          instance,
+          jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES },
+        },
+        "emigateway.graphql.mutation.FactsMngImportSharkAttacks": {
+          fn: instance.importSharkAttacks$,
+          instance,
+          jwtValidation: {
+            roles: WRITE_ROLES,
+            attributes: REQUIRED_ATTRIBUTES,
+          },
+        },
+        "emigateway.graphql.mutation.FactsMngCreateSharkAttack": {
+          fn: instance.createSharkAttack$,
+          instance,
+          jwtValidation: {
+            roles: WRITE_ROLES,
+            attributes: REQUIRED_ATTRIBUTES,
+          },
+        },
+        "emigateway.graphql.mutation.FactsMngUpdateSharkAttack": {
+          fn: instance.updateSharkAttack$,
+          jwtValidation: {
+            roles: WRITE_ROLES,
+            attributes: REQUIRED_ATTRIBUTES,
+          },
+        },
+        "emigateway.graphql.mutation.FactsMngDeleteSharkAttacks": {
+          fn: instance.deleteSharkAttacks$,
+          jwtValidation: {
+            roles: WRITE_ROLES,
+            attributes: REQUIRED_ATTRIBUTES,
+          },
+        },
+      },
+    };
+  }
 
-
-  /**  
+  /**
    * Gets the SharkAttack list
    *
    * @param {*} args args
@@ -60,16 +113,33 @@ class SharkAttackCRUD {
     const { queryTotalResultCount = false } = paginationInput || {};
 
     return forkJoin(
-      SharkAttackDA.getSharkAttackList$(filterInput, paginationInput, sortInput).pipe(toArray()),
-      queryTotalResultCount ? SharkAttackDA.getSharkAttackSize$(filterInput) : of(undefined),
+      SharkAttackDA.getSharkAttackList$(
+        filterInput,
+        paginationInput,
+        sortInput
+      ).pipe(toArray()),
+      queryTotalResultCount
+        ? SharkAttackDA.getSharkAttackSize$(filterInput)
+        : of(undefined)
     ).pipe(
-      map(([listing, queryTotalResultCount]) => ({ listing, queryTotalResultCount })),
-      mergeMap(rawResponse => CqrsResponseHelper.buildSuccessResponse$(rawResponse)),
-      catchError(err => iif(() => err.name === 'MongoTimeoutError', throwError(err), CqrsResponseHelper.handleError$(err)))
+      map(([listing, queryTotalResultCount]) => ({
+        listing,
+        queryTotalResultCount,
+      })),
+      mergeMap((rawResponse) =>
+        CqrsResponseHelper.buildSuccessResponse$(rawResponse)
+      ),
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
     );
   }
 
-  /**  
+  /**
    * Gets the get SharkAttack by id
    *
    * @param {*} args args
@@ -77,16 +147,51 @@ class SharkAttackCRUD {
   getSharkAttack$({ args }, authToken) {
     const { id, organizationId } = args;
     return SharkAttackDA.getSharkAttack$(id, organizationId).pipe(
-      mergeMap(rawResponse => CqrsResponseHelper.buildSuccessResponse$(rawResponse)),
-      catchError(err => iif(() => err.name === 'MongoTimeoutError', throwError(err), CqrsResponseHelper.handleError$(err)))
+      mergeMap((rawResponse) =>
+        CqrsResponseHelper.buildSuccessResponse$(rawResponse)
+      ),
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
     );
-
   }
 
+  /**
+   * Get importing of shark attacks
+   *
+   * @param {*} args args
+   */
+  getFactsMngSharkAttacksByCountry$({ args }, authToken) {
+    const { country } = args;
+    return FeedParser.getSharkAttackDetailByCountry$(country).pipe(
+      delay(1000),
+      map((data) => ({
+        ...data,
+        id: data.original_order,
+        active: true,
+        organizationId: authToken.organizationId,
+      })),
+      toArray(),
+      mergeMap((rawResponse) =>
+        CqrsResponseHelper.buildSuccessResponse$(rawResponse)
+      ),
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
+    );
+  }
 
   /**
-  * Create a SharkAttack
-  */
+   * Create a SharkAttack
+   */
   createSharkAttack$({ root, args, jwt }, authToken) {
     const aggregateId = uuidv4();
     const input = {
@@ -94,34 +199,83 @@ class SharkAttackCRUD {
       ...args.input,
     };
 
-    return SharkAttackDA.createSharkAttack$(aggregateId, input, authToken.preferred_username).pipe(
-      mergeMap(aggregate => forkJoin(
-        CqrsResponseHelper.buildSuccessResponse$(aggregate),
-        eventSourcing.emitEvent$(instance.buildAggregateMofifiedEvent('CREATE', 'SharkAttack', aggregateId, authToken, aggregate), { autoAcknowledgeKey: process.env.MICROBACKEND_KEY }),
-        broker.send$(MATERIALIZED_VIEW_TOPIC, `FactsMngSharkAttackModified`, aggregate)
-      )),
+    return SharkAttackDA.createSharkAttack$(
+      aggregateId,
+      input,
+      authToken.preferred_username
+    ).pipe(
+      mergeMap((aggregate) =>
+        forkJoin(
+          CqrsResponseHelper.buildSuccessResponse$(aggregate),
+          eventSourcing.emitEvent$(
+            instance.buildAggregateMofifiedEvent(
+              "CREATE",
+              "SharkAttack",
+              aggregateId,
+              authToken,
+              aggregate
+            ),
+            { autoAcknowledgeKey: process.env.MICROBACKEND_KEY }
+          ),
+          broker.send$(
+            MATERIALIZED_VIEW_TOPIC,
+            `FactsMngSharkAttackModified`,
+            aggregate
+          )
+        )
+      ),
       map(([sucessResponse]) => sucessResponse),
-      catchError(err => iif(() => err.name === 'MongoTimeoutError', throwError(err), CqrsResponseHelper.handleError$(err)))
-    )
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
+    );
   }
 
   /**
-   * updates an SharkAttack 
+   * updates an SharkAttack
    */
   updateSharkAttack$({ root, args, jwt }, authToken) {
     const { id, input, merge } = args;
 
-    return (merge ? SharkAttackDA.updateSharkAttack$ : SharkAttackDA.replaceSharkAttack$)(id, input, authToken.preferred_username).pipe(
-      mergeMap(aggregate => forkJoin(
-        CqrsResponseHelper.buildSuccessResponse$(aggregate),
-        eventSourcing.emitEvent$(instance.buildAggregateMofifiedEvent(merge ? 'UPDATE_MERGE' : 'UPDATE_REPLACE', 'SharkAttack', id, authToken, aggregate), { autoAcknowledgeKey: process.env.MICROBACKEND_KEY }),
-        broker.send$(MATERIALIZED_VIEW_TOPIC, `FactsMngSharkAttackModified`, aggregate)
-      )),
+    return (
+      merge
+        ? SharkAttackDA.updateSharkAttack$
+        : SharkAttackDA.replaceSharkAttack$
+    )(id, input, authToken.preferred_username).pipe(
+      mergeMap((aggregate) =>
+        forkJoin(
+          CqrsResponseHelper.buildSuccessResponse$(aggregate),
+          eventSourcing.emitEvent$(
+            instance.buildAggregateMofifiedEvent(
+              merge ? "UPDATE_MERGE" : "UPDATE_REPLACE",
+              "SharkAttack",
+              id,
+              authToken,
+              aggregate
+            ),
+            { autoAcknowledgeKey: process.env.MICROBACKEND_KEY }
+          ),
+          broker.send$(
+            MATERIALIZED_VIEW_TOPIC,
+            `FactsMngSharkAttackModified`,
+            aggregate
+          )
+        )
+      ),
       map(([sucessResponse]) => sucessResponse),
-      catchError(err => iif(() => err.name === 'MongoTimeoutError', throwError(err), CqrsResponseHelper.handleError$(err)))
-    )
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
+    );
   }
-
 
   /**
    * deletes an SharkAttack
@@ -131,42 +285,131 @@ class SharkAttackCRUD {
     return forkJoin(
       SharkAttackDA.deleteSharkAttacks$(ids),
       from(ids).pipe(
-        mergeMap(id => eventSourcing.emitEvent$(instance.buildAggregateMofifiedEvent('DELETE', 'SharkAttack', id, authToken, {}), { autoAcknowledgeKey: process.env.MICROBACKEND_KEY })),
+        mergeMap((id) =>
+          eventSourcing.emitEvent$(
+            instance.buildAggregateMofifiedEvent(
+              "DELETE",
+              "SharkAttack",
+              id,
+              authToken,
+              {}
+            ),
+            { autoAcknowledgeKey: process.env.MICROBACKEND_KEY }
+          )
+        ),
         toArray()
       )
     ).pipe(
-      map(([ok, esResps]) => ({ code: ok ? 200 : 400, message: `SharkAttack with id:s ${JSON.stringify(ids)} ${ok ? "has been deleted" : "not found for deletion"}` })),
-      mergeMap((r) => forkJoin(
-        CqrsResponseHelper.buildSuccessResponse$(r),
-        broker.send$(MATERIALIZED_VIEW_TOPIC, `FactsMngSharkAttackModified`, { id: 'deleted', name: '', active: false, description: '' })
-      )),
+      map(([ok, esResps]) => ({
+        code: ok ? 200 : 400,
+        message: `SharkAttack with id:s ${JSON.stringify(ids)} ${
+          ok ? "has been deleted" : "not found for deletion"
+        }`,
+      })),
+      mergeMap((r) =>
+        forkJoin(
+          CqrsResponseHelper.buildSuccessResponse$(r),
+          broker.send$(MATERIALIZED_VIEW_TOPIC, `FactsMngSharkAttackModified`, {
+            id: "deleted",
+            name: "",
+            active: false,
+            description: "",
+          })
+        )
+      ),
       map(([cqrsResponse, brokerRes]) => cqrsResponse),
-      catchError(err => iif(() => err.name === 'MongoTimeoutError', throwError(err), CqrsResponseHelper.handleError$(err)))
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
     );
   }
 
+  /**
+   * Import shark attacks list
+   */
+  importSharkAttacks$({ root, args, jwt }, authToken) {
+    return FeedParser.parseFeed$(SHARK_ATTACKS_FEED_URL).pipe(
+      map((data) => ({
+        ...data,
+        id: data.original_order,
+        active: true,
+        organizationId: authToken.organizationId,
+      })),
+      mergeMap((sharkAttack) =>
+        SharkAttackDA.createSharkAttack$(
+          sharkAttack.id,
+          sharkAttack,
+          authToken.preferred_username
+        )
+      ),
+      // tap((data) =>
+      //   ConsoleLogger.i(
+      //     `Importing shark attacks with args: ${JSON.stringify(data, null, 1)}`
+      //   )
+      // ),
+      // last(),
+      mergeMap((sharkAttack) =>
+        eventSourcing.emitEvent$(
+          instance.buildAggregateMofifiedEvent(
+            "CREATE",
+            "SharkAttack",
+            sharkAttack.id,
+            authToken,
+            sharkAttack,
+            "Reported"
+          ),
+          { autoAcknowledgeKey: process.env.MICROBACKEND_KEY } // para que no escuhe mis propios mensajes
+        )
+      ),
+      toArray(), //Espera todas las respuestas y luego lo convierte en un array
+      // // Respuesta al frontend
+      map((data) => ({ code: data.length, message: "Ok" })),
+      mergeMap((aggregate) =>
+        forkJoin(CqrsResponseHelper.buildSuccessResponse$(aggregate))
+      ),
+      map(([sucessResponse]) => sucessResponse),
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
+    );
+  }
 
   /**
-   * Generate an Modified event 
+   * Generate an Modified event
    * @param {string} modType 'CREATE' | 'UPDATE' | 'DELETE'
-   * @param {*} aggregateType 
-   * @param {*} aggregateId 
-   * @param {*} authToken 
-   * @param {*} data 
+   * @param {*} aggregateType
+   * @param {*} aggregateId
+   * @param {*} authToken
+   * @param {*} data
    * @returns {Event}
    */
-  buildAggregateMofifiedEvent(modType, aggregateType, aggregateId, authToken, data) {
+  buildAggregateMofifiedEvent(
+    modType,
+    aggregateType,
+    aggregateId,
+    authToken,
+    data,
+    eventType
+  ) {
     return new Event({
-      eventType: `${aggregateType}Modified`,
+      eventType: eventType || `${aggregateType}Modified`,
       eventTypeVersion: 1,
       aggregateType: aggregateType,
       aggregateId,
       data: {
         modType,
-        ...data
+        ...data,
       },
-      user: authToken.preferred_username
-    })
+      user: authToken.preferred_username,
+    });
   }
 }
 
