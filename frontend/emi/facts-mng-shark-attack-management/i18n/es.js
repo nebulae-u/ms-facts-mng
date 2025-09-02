@@ -34,7 +34,7 @@ export default {
     shark_attacks: "Ataque de tiburón",
     shark_attack_detail: "Detalle del ataque de tiburón",
     save: "GUARDAR",
-    find_country_by: "Consultar por [Pais]",
+    find_country_by: "Consultar por {country}",
     basic_info: "Información Básica",
     date: "Fecha",
     year: "Año",

@@ -208,7 +208,7 @@ export const FactsMngImportSharkAttacks = (variables) => ({
   variables,
 });
 
-export const FactsMngSharkAttackDetails = (variables) => ({
+export const FactsMngSharkAttacksByCountry = (variables) => ({
   query: gql`
     query FactsMngSharkAttacksByCountry(
       $country: String!
@@ -219,34 +219,10 @@ export const FactsMngSharkAttackDetails = (variables) => ({
         organizationId: $organizationId
       ) {
         id
-        organizationId
-        date
-        year
-        type
-        country
-        area
-        location
-        activity
         name
-        sex
+        country
         age
-        injury
-        fatal_y_n
-        time
-        species
-        investigator_or_source
-        pdf
-        href_formula
-        href
-        case_number
-        case_number0
-        active
-        metadata {
-          createdBy
-          createdAt
-          updatedBy
-          updatedAt
-        }
+        type
       }
     }
   `,

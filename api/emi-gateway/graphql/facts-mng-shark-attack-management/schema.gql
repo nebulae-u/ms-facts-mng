@@ -109,16 +109,13 @@ input FactsMngSharkAttackSortInput {
   asc: Boolean!,
 }
 
-# input FactsMngSharkAttackInput {
-#   "name"
-#   name: String
-#   "organization id"
-#   organizationId: String!
-#   "SharkAttack description"
-#   description: String
-#   "SharkAttack active flag"
-#   active: Boolean
-# }
+type FactsMngSharkAttacksByCountry {  
+  id: String
+  name: String
+  country: String
+  age: String
+  type: String
+}
 
 input FactsMngSharkAttackImportInput {
  limit:Int
@@ -189,7 +186,7 @@ type Query {
   "Get SharkAttack by its id"
   FactsMngSharkAttack(id: ID!, organizationId: String!): FactsMngSharkAttack
   "Get Shark attacks by country"
-  FactsMngSharkAttacksByCountry(country: String!, organizationId: String!): [FactsMngSharkAttack]
+  FactsMngSharkAttacksByCountry(country: String!, organizationId: String!): [FactsMngSharkAttacksByCountry]
 }
 
 type Mutation {

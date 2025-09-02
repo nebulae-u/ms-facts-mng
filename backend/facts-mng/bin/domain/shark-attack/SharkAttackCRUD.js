@@ -10,6 +10,7 @@ const {
   tap,
   last,
   delay,
+  take,
 } = require("rxjs/operators");
 
 const Event = require("@nebulae/event-store").Event;
@@ -168,12 +169,12 @@ class SharkAttackCRUD {
   getFactsMngSharkAttacksByCountry$({ args }, authToken) {
     const { country } = args;
     return FeedParser.getSharkAttackDetailByCountry$(country).pipe(
-      delay(1000),
-      map((data) => ({
-        ...data,
-        id: data.original_order,
-        active: true,
-        organizationId: authToken.organizationId,
+      map(({ original_order: id, name, country, age, type }) => ({
+        id,
+        name,
+        country,
+        age,
+        type,
       })),
       toArray(),
       mergeMap((rawResponse) =>
@@ -346,12 +347,6 @@ class SharkAttackCRUD {
           authToken.preferred_username
         )
       ),
-      // tap((data) =>
-      //   ConsoleLogger.i(
-      //     `Importing shark attacks with args: ${JSON.stringify(data, null, 1)}`
-      //   )
-      // ),
-      // last(),
       mergeMap((sharkAttack) =>
         eventSourcing.emitEvent$(
           instance.buildAggregateMofifiedEvent(
@@ -366,7 +361,7 @@ class SharkAttackCRUD {
         )
       ),
       toArray(), //Espera todas las respuestas y luego lo convierte en un array
-      // // Respuesta al frontend
+      // Respuesta al frontend
       map((data) => ({ code: data.length, message: "Ok" })),
       mergeMap((aggregate) =>
         forkJoin(CqrsResponseHelper.buildSuccessResponse$(aggregate))

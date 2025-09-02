@@ -1,5 +1,5 @@
-import React from "react";
-import { FormControlLabel, Switch } from "@material-ui/core";
+import React, { useEffect, useState } from "react";
+import { FormControlLabel, Switch, Box, Paper } from "@material-ui/core";
 import * as Yup from "yup";
 import _ from "@lodash";
 import InputText from "../../components/TextField";
@@ -31,6 +31,15 @@ export function BasicInfo(props) {
     readSharkAttackDetailsResult,
   } = props;
   const { data, loading, called } = readSharkAttackDetailsResult;
+  const [list, setList] = useState(null);
+
+  useEffect(() => {
+    if (data) {
+      setList(data.FactsMngSharkAttacksByCountry);
+    }
+  }, [data]);
+
+  console.log(readSharkAttackDetailsResult);
 
   return (
     <>
@@ -255,7 +264,18 @@ export function BasicInfo(props) {
       </div>
       <div className="flex">
         {loading && <FuseLoading />}
-        {called && <div>{JSON.stringify(data, null, 2)}</div>}
+        {list && (
+          <Box className="w-full bg-gray-300">
+            {list.map((item) => (
+              <Box className="flex justify-between p-2">
+                <span className="w-1/4">{item.name}</span>
+                <span className="w-1/4">{item.age}</span>
+                <span className="w-1/4">{item.country}</span>
+                <span className="w-1/4">{item.type}</span>
+              </Box>
+            ))}
+          </Box>
+        )}
       </div>
     </>
   );

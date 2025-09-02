@@ -41,7 +41,7 @@ import {
   FactsMngSharkAttack,
   FactsMngCreateSharkAttack,
   FactsMngUpdateSharkAttack,
-  FactsMngSharkAttackDetails,
+  FactsMngSharkAttacksByCountry,
 } from "../gql/SharkAttack";
 import Metadata from "./tabs/Metadata";
 import { BasicInfo, basicInfoFormValidationsGenerator } from "./tabs/BasicInfo";
@@ -98,7 +98,7 @@ function SharkAttack(props) {
   const onSharkAttackModifiedResult = useSubscription(
     ...onFactsMngSharkAttackModified({ id: props.match.params.sharkAttackId })
   );
-  const gqlSharkAttackDetails = FactsMngSharkAttackDetails({
+  const gqlSharkAttackDetails = FactsMngSharkAttacksByCountry({
     country: props.match.params.country,
   });
   const [readSharkAttackDetails, readSharkAttackDetailsResult] = useLazyQuery(
@@ -408,7 +408,9 @@ function SharkAttack(props) {
                   variant="contained"
                   onClick={queryFactsMngSharkAttackDetails}
                 >
-                  {T.translate("shark_attack.find_country_by")}
+                  {T.translate("shark_attack.find_country_by", {
+                    country: form.country,
+                  })}
                 </Button>
               </FuseAnimate>
             </div>
