@@ -39,8 +39,6 @@ export function BasicInfo(props) {
     }
   }, [data]);
 
-  console.log(readSharkAttackDetailsResult);
-
   return (
     <>
       <div className="flex flex-col md:flex-row">

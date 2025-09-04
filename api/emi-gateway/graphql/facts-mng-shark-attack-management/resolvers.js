@@ -109,6 +109,17 @@ module.exports = {
         "FactsMngSharkAttacksByCountry"
       ).toPromise();
     },
+    FactsMngSharkAttacksAggStats(root, args, context) {
+      return sendToBackEndHandler$(
+        root,
+        args,
+        context,
+        READ_ROLES,
+        "query",
+        "SharkAttack",
+        "FactsMngSharkAttacksAggStats"
+      ).toPromise();
+    },
   },
 
   //// MUTATIONS ///////

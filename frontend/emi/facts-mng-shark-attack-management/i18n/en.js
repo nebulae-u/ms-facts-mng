@@ -1,12 +1,12 @@
 export default {
   navigation: {
     settings: "Settings",
-    "facts-mng-shark-attack-management": "SharkAttacks",
+    "facts-mng-shark-attack-management": "Shark Attacks",
   },
   shark_attacks: {
-    shark_attacks: "SharkAttacks",
+    shark_attacks: "Shark Attacks",
     search: "Quick search by name",
-    add_new_shark_attack: "ADD NEW",
+    add_new_shark_attack: "NEW",
     add_new_shark_attack_short: "NEW",
     import_shark_attack: "IMPORT",
     import_shark_attack_short: "📄",
@@ -28,6 +28,14 @@ export default {
     filters: {
       title: "Filters",
       active: "Active",
+    },
+    stats: {
+      close: "Close",
+      title: "General Statistics",
+      title_country_chart: "Statistics by country",
+      title_year_chart: "Statistics by year",
+      btn_tooltip: "View statistics",
+      sharkAttacks: "Total shark attacks: {total}",
     },
   },
   shark_attack: {

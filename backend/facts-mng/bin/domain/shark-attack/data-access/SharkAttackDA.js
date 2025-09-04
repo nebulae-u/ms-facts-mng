@@ -1,8 +1,8 @@
 "use strict";
 
 let mongoDB = undefined;
-const { map, mapTo } = require("rxjs/operators");
-const { of, Observable, defer } = require("rxjs");
+const { map, mapTo, tap, catchError } = require("rxjs/operators");
+const { of, Observable, defer, forkJoin } = require("rxjs");
 
 const { CustomError } = require("@nebulae/backend-node-tools").error;
 
@@ -175,6 +175,31 @@ class SharkAttackDA {
   }
 
   /**
+   *  Crea o actualiza un registro existente
+   */
+  static createIfNotExists$(_id, properties, av) {
+    const collection = mongoDB.db.collection(CollectionName);
+    return defer(() =>
+      collection.updateOne(
+        {
+          _id,
+        },
+        { $setOnInsert: { ...properties } },
+        {
+          returnOriginal: false,
+          upsert: true,
+        }
+      )
+    ).pipe(
+      map((result) =>
+        result && result.value
+          ? { ...result.value, id: result.value._id }
+          : undefined
+      )
+    );
+  }
+
+  /**
    * modifies the SharkAttack properties
    * @param {String} id  SharkAttack ID
    * @param {*} SharkAttack properties to update
@@ -203,6 +228,49 @@ class SharkAttackDA {
     const collection = mongoDB.db.collection(CollectionName);
     return defer(() => collection.deleteMany({ _id: { $in: _ids } })).pipe(
       map(({ deletedCount }) => deletedCount > 0)
+    );
+  }
+
+  /**
+   * Obtiene los agregados agrupados por pais y año
+   */
+  static getFactsMngSharkAttacksAggStats$(recordLimit) {
+    const collection = mongoDB.db.collection(CollectionName);
+
+    const pipelineCountry = [
+      { $group: { _id: "$country", total: { $sum: 1 } } },
+      { $sort: { total: -1 } },
+      { $limit: recordLimit },
+      { $project: { _id: 0, country: "$_id", total: 1 } },
+    ];
+
+    const pipelineYear = [
+      { $group: { _id: { $toInt: "$year" }, total: { $sum: 1 } } },
+      { $sort: { _id: -1 } },
+      { $project: { _id: 0, year: "$_id", total: 1 } },
+    ];
+
+    const groupByCountry$ = defer(() =>
+      collection.aggregate(pipelineCountry).toArray()
+    );
+    const groupByYear$ = defer(() =>
+      collection.aggregate(pipelineYear).toArray()
+    );
+    const totalDocuments$ = defer(() => collection.countDocuments());
+
+    return forkJoin([groupByCountry$, groupByYear$, totalDocuments$]).pipe(
+      map(([countries, years, totalSharkAttacks]) => ({
+        countries,
+        years,
+        totalSharkAttacks,
+      })),
+      catchError((err) =>
+        of({
+          countries: [],
+          years: [],
+          totalSharkAttacks: 0,
+        })
+      )
     );
   }
 }

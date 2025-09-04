@@ -18,10 +18,13 @@ import i18n from "../i18n";
 import _ from "@lodash";
 import { useEventCallback } from "rxjs-hooks";
 import { debounceTime } from "rxjs/operators";
+import Modal from "../components/Modal";
+import BarChart from "../components/Bar";
+import LineChart from "../components/LineChart";
 
 function SharkAttacksHeader(props) {
   const dispatch = useDispatch();
-  const { filters, rowsPerPage, page, order } = useSelector(
+  const { filters, rowsPerPage, page, order, stats } = useSelector(
     ({ SharkAttackManagement }) => SharkAttackManagement.sharkAttacks
   );
   const user = useSelector(({ auth }) => auth.user);
@@ -34,6 +37,7 @@ function SharkAttacksHeader(props) {
   const [keywordCallBack, keyword] = useEventCallback((event$) =>
     event$.pipe(debounceTime(500))
   );
+  const [open, setOpen] = useState(false);
 
   const T = new MDText(i18n.get(user.locale));
 
@@ -57,6 +61,15 @@ function SharkAttacksHeader(props) {
       })
     );
   }
+
+  function handleGetAggSharkAttacksByCountry(recordLimit) {
+    dispatch(Actions.getSharkAttacksAggStats(recordLimit));
+    setOpen(!open);
+  }
+
+  const onClose = () => {
+    setOpen(!open);
+  };
 
   return (
     <div className="flex flex-1 w-full items-center justify-between">
@@ -126,7 +139,7 @@ function SharkAttacksHeader(props) {
           <Button
             component={Link}
             onClick={handleRequestImportSharkAttacks}
-            className="whitespace-no-wrap"
+            className="whitespace-no-wrap mr-5"
             variant="contained"
           >
             <span className="hidden sm:flex">
@@ -137,7 +150,52 @@ function SharkAttacksHeader(props) {
             </span>
           </Button>
         </FuseAnimate>
+        <FuseAnimate animation="transition.slideRightIn" delay={300}>
+          <Button
+            component={Link}
+            onClick={() =>
+              handleGetAggSharkAttacksByCountry({ recordLimit: 5 })
+            }
+            className="whitespace-no-wrap"
+            variant="contained"
+            title={T.translate("shark_attacks.stats.btn_tooltip")}
+          >
+            📊
+          </Button>
+        </FuseAnimate>
       </div>
+      <Modal
+        onClose={onClose}
+        open={open}
+        title={T.translate("shark_attacks.stats.title")}
+      >
+        <>
+          <div
+            className="w-full flex justify-center my-5 text-white"
+            style={{ backgroundColor: "#3C4252" }}
+          >
+            <h3>
+              {T.translate("shark_attacks.stats.sharkAttacks", {
+                total: stats.totalSharkAttacks,
+              })}
+            </h3>
+          </div>
+          <div className="flex flex-col">
+            <div className="w-full" style={{ minHeight: 200 }}>
+              <BarChart
+                dataSet={stats.countries}
+                title={T.translate("shark_attacks.stats.title_country_chart")}
+              />
+            </div>
+            <div className="w-full" style={{ minHeight: 300 }}>
+              <LineChart
+                dataSet={stats.years}
+                title={T.translate("shark_attacks.stats.title_year_chart")}
+              />
+            </div>
+          </div>
+        </>
+      </Modal>
     </div>
   );
 }

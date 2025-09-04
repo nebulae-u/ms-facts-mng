@@ -1,79 +1,84 @@
-import * as Actions from '../actions';
+import * as Actions from "../actions";
 
 const initialState = {
-    data: [],
-    totalDataCount: 0,
-    page: 0,
-    rowsPerPage: 10,
-    order: {
-        direction: 'asc',
-        id: null
-    },
-    filters: {
-        name: '',
-        active: null,
-        organizationId: undefined
-    }
+  data: [],
+  totalDataCount: 0,
+  page: 0,
+  rowsPerPage: 10,
+  order: {
+    direction: "asc",
+    id: null,
+  },
+  filters: {
+    name: "",
+    active: null,
+    organizationId: undefined,
+  },
+  stats: {
+    countries: [],
+    years: [],
+    totalSharkAttacks: 0,
+  },
 };
 
 const sharkAttacksReducer = function (state = initialState, action) {
-    switch (action.type) {
-        case Actions.SET_SHARK_ATTACKS:
-            {
-                const { listing, queryTotalResultCount } = action.payload;
-                return {
-                    ...state,
-                    data: listing,
-                    totalDataCount: queryTotalResultCount ? queryTotalResultCount : state.totalDataCount,
-                };
-            }
-        case Actions.SET_SHARK_ATTACKS_PAGE:
-            {
-                return {
-                    ...state,
-                    page: action.page
-                };
-            }
-        case Actions.SET_SHARK_ATTACKS_ROWS_PER_PAGE:
-            {
-                return {
-                    ...state,
-                    rowsPerPage: action.rowsPerPage
-                };
-            }
-        case Actions.SET_SHARK_ATTACKS_ORDER:
-            {
-                return {
-                    ...state,
-                    order: action.order
-                };
-            }
-        case Actions.SET_SHARK_ATTACKS_FILTERS_ORGANIZATION_ID:
-            {
-                return {
-                    ...state,
-                    filters: { ...state.filters, organizationId: action.organizationId }
-                };
-            }
-        case Actions.SET_SHARK_ATTACKS_FILTERS_NAME:
-            {
-                return {
-                    ...state,
-                    filters: { ...state.filters, name: action.name }
-                };
-            }
-        case Actions.SET_SHARK_ATTACKS_FILTERS_ACTIVE:
-            {
-                return {
-                    ...state,
-                    filters: { ...state.filters, active: action.active }
-                };
-            }
-        default:
-            {
-                return state;
-            }
+  switch (action.type) {
+    case Actions.SET_SHARK_ATTACKS: {
+      const { listing, queryTotalResultCount } = action.payload;
+      return {
+        ...state,
+        data: listing,
+        totalDataCount: queryTotalResultCount
+          ? queryTotalResultCount
+          : state.totalDataCount,
+      };
     }
+    case Actions.SET_SHARK_ATTACKS_PAGE: {
+      return {
+        ...state,
+        page: action.page,
+      };
+    }
+    case Actions.SET_SHARK_ATTACKS_ROWS_PER_PAGE: {
+      return {
+        ...state,
+        rowsPerPage: action.rowsPerPage,
+      };
+    }
+    case Actions.SET_SHARK_ATTACKS_ORDER: {
+      return {
+        ...state,
+        order: action.order,
+      };
+    }
+    case Actions.SET_SHARK_ATTACKS_FILTERS_ORGANIZATION_ID: {
+      return {
+        ...state,
+        filters: { ...state.filters, organizationId: action.organizationId },
+      };
+    }
+    case Actions.SET_SHARK_ATTACKS_FILTERS_NAME: {
+      return {
+        ...state,
+        filters: { ...state.filters, name: action.name },
+      };
+    }
+    case Actions.SET_SHARK_ATTACKS_FILTERS_ACTIVE: {
+      return {
+        ...state,
+        filters: { ...state.filters, active: action.active },
+      };
+    }
+    case Actions.GET_SHARK_ATTACKS_STATS: {
+      return {
+        ...state,
+        stats: action.payload,
+      };
+    }
+    default: {
+      return state;
+    }
+  }
 };
 
 export default sharkAttacksReducer;

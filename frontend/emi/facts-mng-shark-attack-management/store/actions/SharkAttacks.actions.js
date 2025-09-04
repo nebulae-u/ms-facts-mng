@@ -1,11 +1,12 @@
 import { defer } from "rxjs";
-import { mergeMap, map } from "rxjs/operators";
+import { mergeMap, map, tap } from "rxjs/operators";
 
 import graphqlService from "../../../../services/graphqlService";
 import {
   FactsMngSharkAttackListing,
   FactsMngDeleteSharkAttack,
   FactsMngImportSharkAttacks,
+  FactsMngSharkAttacksAggStats,
 } from "../../gql/SharkAttack";
 
 export const SET_SHARK_ATTACKS = "[SHARK_ATTACK_MNG] SET SHARK_ATTACKS";
@@ -21,6 +22,8 @@ export const SET_SHARK_ATTACKS_FILTERS_NAME =
   "[SHARK_ATTACK_MNG] SET SHARK_ATTACKS FILTERS NAME";
 export const SET_SHARK_ATTACKS_FILTERS_ACTIVE =
   "[SHARK_ATTACK_MNG] SET SHARK_ATTACKS FILTERS ACTIVE";
+export const GET_SHARK_ATTACKS_STATS =
+  "[SHARK_ATTACK_MNG] GET SHARK_ATTACKS STATS";
 
 /**
  * Common function to generate the arguments for the FactsMngSharkAttackListing query based on the user input
@@ -172,7 +175,7 @@ export function setSharkAttacksFilterOrganizationId(organizationId) {
 }
 
 /**
- * Executes the mutation to import the games
+ * Executes the mutation to import the shark attacks
  */
 export function importSharkAttacks({
   filters,
@@ -203,6 +206,25 @@ export function importSharkAttacks({
           dispatch({
             type: SET_SHARK_ATTACKS,
             payload: result.data.FactsMngSharkAttackListing,
+          })
+        )
+      )
+      .toPromise();
+}
+
+/**
+ * Executes the query to create an aggregate the shark attacks by country and year
+ */
+export function getSharkAttacksAggStats(recordLimit) {
+  return (dispatch) =>
+    defer(() =>
+      graphqlService.client.query(FactsMngSharkAttacksAggStats(recordLimit))
+    )
+      .pipe(
+        map((result) =>
+          dispatch({
+            type: GET_SHARK_ATTACKS_STATS,
+            payload: result.data.FactsMngSharkAttacksAggStats,
           })
         )
       )

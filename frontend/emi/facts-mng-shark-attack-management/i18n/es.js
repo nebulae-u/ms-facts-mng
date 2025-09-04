@@ -1,13 +1,13 @@
 export default {
   navigation: {
     settings: "Configuraciones",
-    "facts-mng-shark-attack-management": "SharkAttacks",
+    "facts-mng-shark-attack-management": "Ataques de Tiburón",
   },
   shark_attacks: {
-    shark_attacks: "SharkAttacks",
+    shark_attacks: "Ataques de Tiburón",
     search: "Búsqueda rápida por nombre",
-    add_new_shark_attack: "Agregar Nueva",
-    add_new_shark_attack_short: "Agregar",
+    add_new_shark_attack: "Nuevo",
+    add_new_shark_attack_short: "Nuevo",
     import_shark_attack: "IMPORTAR",
     import_shark_attack_short: "📄",
     rows_per_page: "Filas por página:",
@@ -28,6 +28,14 @@ export default {
     filters: {
       title: "Filtros",
       active: "Activo",
+    },
+    stats: {
+      close: "Cerrar",
+      title: "Estadísticas generales",
+      title_country_chart: "Estadísticas por país",
+      title_year_chart: "Estadísticas por año",
+      btn_tooltip: "Ver Estadísticas",
+      sharkAttacks: "Total de ataques por tiburones: {total}",
     },
   },
   shark_attack: {

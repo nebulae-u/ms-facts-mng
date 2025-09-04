@@ -229,3 +229,23 @@ export const FactsMngSharkAttacksByCountry = (variables) => ({
   variables,
   fetchPolicy: "network-only",
 });
+
+export const FactsMngSharkAttacksAggStats = (variables) => ({
+  query: gql`
+    query FactsMngSharkAttacksAggStats($recordLimit: Int!) {
+      FactsMngSharkAttacksAggStats(recordLimit: $recordLimit) {
+        countries {
+          country
+          total
+        }
+        years {
+          year
+          total
+        }
+        totalSharkAttacks
+      }
+    }
+  `,
+  variables,
+  fetchPolicy: "network-only",
+});

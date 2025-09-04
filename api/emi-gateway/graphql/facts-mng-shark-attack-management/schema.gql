@@ -5,21 +5,6 @@ type CommandResponse {
   message: String
 }
 
-# type FactsMngSharkAttack {
-#   "SharkAttack ID"
-#   id: ID!
-#   "name"
-#   name: String!
-#   "organization id"
-#   organizationId: String!
-#   "SharkAttack description"
-#   description: String
-#   "SharkAttack active flag"
-#   active: Boolean!  
-#   "object metadata"
-#   metadata: FactsMngSharkAttackMetadata
-# }
-
 type FactsMngSharkAttack {
   "SharkAttack ID"
   id: ID!
@@ -85,7 +70,6 @@ type FactsMngSharkAttackListing {
   queryTotalResultCount: Int,  
 }
 
-
 input FactsMngSharkAttackFilterInput {
   "Name"
   name: String
@@ -117,8 +101,24 @@ type FactsMngSharkAttacksByCountry {
   type: String
 }
 
+type FactsMngSharkAttackStats {
+  countries: [AggregateCountry]
+  years: [AggregateYear]
+  totalSharkAttacks: Int,  
+}
+
+type AggregateCountry {  
+  country: String
+  total: Int
+}
+
+type AggregateYear {
+  year: String
+  total: Int
+}
+
 input FactsMngSharkAttackImportInput {
- limit:Int
+ limit:Int!
 }
 
 input FactsMngSharkAttackInput {
@@ -168,18 +168,6 @@ input FactsMngSharkAttackInput {
   active: Boolean
 }
 
-# input FactsMngSharkAttackInput {
-#   "name"
-#   name: String
-#   "organization id"
-#   organizationId: String!
-#   "SharkAttack description"
-#   description: String
-#   "SharkAttack active flag"
-#   active: Boolean
-# }
-
-
 type Query {
   "Get SharkAttacks filtered "
   FactsMngSharkAttackListing(filterInput: FactsMngSharkAttackFilterInput, paginationInput: FactsMngSharkAttackPaginationInput, sortInput: FactsMngSharkAttackSortInput): FactsMngSharkAttackListing
@@ -187,6 +175,8 @@ type Query {
   FactsMngSharkAttack(id: ID!, organizationId: String!): FactsMngSharkAttack
   "Get Shark attacks by country"
   FactsMngSharkAttacksByCountry(country: String!, organizationId: String!): [FactsMngSharkAttacksByCountry]
+  "Get two aggregates of Shark attacks by country and year"
+  FactsMngSharkAttacksAggStats(recordLimit: Int!): FactsMngSharkAttackStats
 }
 
 type Mutation {

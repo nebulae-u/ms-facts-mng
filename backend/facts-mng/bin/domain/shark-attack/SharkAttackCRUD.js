@@ -70,6 +70,11 @@ class SharkAttackCRUD {
           instance,
           jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES },
         },
+        "emigateway.graphql.query.FactsMngSharkAttacksAggStats": {
+          fn: instance.getFactsMngSharkAttacksAggStats$,
+          instance,
+          jwtValidation: { roles: READ_ROLES, attributes: REQUIRED_ATTRIBUTES },
+        },
         "emigateway.graphql.mutation.FactsMngImportSharkAttacks": {
           fn: instance.importSharkAttacks$,
           instance,
@@ -148,6 +153,26 @@ class SharkAttackCRUD {
   getSharkAttack$({ args }, authToken) {
     const { id, organizationId } = args;
     return SharkAttackDA.getSharkAttack$(id, organizationId).pipe(
+      mergeMap((rawResponse) =>
+        CqrsResponseHelper.buildSuccessResponse$(rawResponse)
+      ),
+      catchError((err) =>
+        iif(
+          () => err.name === "MongoTimeoutError",
+          throwError(err),
+          CqrsResponseHelper.handleError$(err)
+        )
+      )
+    );
+  }
+
+  /**
+   * Obtiene los agregados agrupados por pais y año
+   */
+  getFactsMngSharkAttacksAggStats$({ args }) {
+    const { recordLimit } = args;
+
+    return SharkAttackDA.getFactsMngSharkAttacksAggStats$(recordLimit).pipe(
       mergeMap((rawResponse) =>
         CqrsResponseHelper.buildSuccessResponse$(rawResponse)
       ),
@@ -340,31 +365,38 @@ class SharkAttackCRUD {
         active: true,
         organizationId: authToken.organizationId,
       })),
+      //take(2),
       mergeMap((sharkAttack) =>
-        SharkAttackDA.createSharkAttack$(
-          sharkAttack.id,
-          sharkAttack,
-          authToken.preferred_username
-        )
-      ),
-      mergeMap((sharkAttack) =>
-        eventSourcing.emitEvent$(
-          instance.buildAggregateMofifiedEvent(
-            "CREATE",
-            "SharkAttack",
-            sharkAttack.id,
-            authToken,
-            sharkAttack,
-            "Reported"
+        forkJoin([
+          eventSourcing.emitEvent$(
+            instance.buildAggregateMofifiedEvent(
+              "CREATE",
+              "SharkAttack",
+              sharkAttack.id,
+              authToken,
+              sharkAttack,
+              "SharkAttackReported"
+            )
+            //{ autoAcknowledgeKey: process.env.MICROBACKEND_KEY } // para que no escuhe mis propios mensajes
           ),
-          { autoAcknowledgeKey: process.env.MICROBACKEND_KEY } // para que no escuhe mis propios mensajes
-        )
+          broker.send$(
+            MATERIALIZED_VIEW_TOPIC,
+            `FactsMngSharkAttackModified`,
+            sharkAttack
+          ),
+        ])
       ),
       toArray(), //Espera todas las respuestas y luego lo convierte en un array
       // Respuesta al frontend
-      map((data) => ({ code: data.length, message: "Ok" })),
+      map((result) => ({
+        code: result.length,
+        message: `::: ${result.length} Eventos emitidos`,
+      })),
       mergeMap((aggregate) =>
-        forkJoin(CqrsResponseHelper.buildSuccessResponse$(aggregate))
+        forkJoin(
+          CqrsResponseHelper.buildSuccessResponse$(aggregate),
+          instance.getFactsMngSharkAttackListing$(args)
+        )
       ),
       map(([sucessResponse]) => sucessResponse),
       catchError((err) =>
